@@ -1,5 +1,7 @@
 import asyncio
 
+import sqlalchemy
+
 import lib
 
 
@@ -17,6 +19,10 @@ async def main():
 
     fgd = await lib.async_get_fgd((137.002534, 36.7447799), (137.012534, 36.7547799))
     fgd.to_file("fgd.geojson", driver="GeoJSON")
+
+    engine = sqlalchemy.create_engine("postgresql://postgres:0@localhost:5432/postgres")
+    rdcl.to_postgis("rdcl", engine)
+    fgd.to_postgis("fgd", engine)
 
 
 

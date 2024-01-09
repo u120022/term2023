@@ -132,7 +132,8 @@ def get_panoimg(id: str, subdivision: int) -> PIL.Image.Image:
 async def async_content_to_geo(content: bytes) -> gpd.GeoDataFrame:
     def content_to_geo(content: bytes) -> gpd.GeoDataFrame:
         data = json.loads(content)
-        gdf = gpd.GeoDataFrame.from_features(data["features"])
+        gdf = gpd.GeoDataFrame.from_features(data["features"], crs="EPSG:6668") # JGD2011 degree
+        gdf = gdf.to_crs("EPSG:3857") # WGS84 meter
         return gdf
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, content_to_geo, content)
