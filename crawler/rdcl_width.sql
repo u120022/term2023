@@ -92,7 +92,7 @@ CREATE TABLE IF NOT EXISTS rdcl_width_sw AS (
 
 -- width without side walk
 DROP TABLE IF EXISTS rdcl_width_nosw;
-CREATE TEMPORARY TABLE IF NOT EXISTS rdcl_width_nosw AS (
+CREATE TABLE IF NOT EXISTS rdcl_width_nosw AS (
     SELECT
         segment AS geom,
         percentile_cont(0.5) WITHIN GROUP (ORDER BY width) AS width

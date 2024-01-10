@@ -35,11 +35,14 @@ class NeighborPano:
         self.lon = lon
 
 
-async def async_request_content(url: str) -> bytes:
+async def async_request_content(url: str) -> bytes | None:
     def request_content(url: str) -> bytes:
-        request = urllib.request.Request(url)
-        with urllib.request.urlopen(request) as responce:
-            return responce.read()
+        try:
+            request = urllib.request.Request(url)
+            with urllib.request.urlopen(request) as responce:
+                return responce.read()
+        except Exception:
+            return None
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, request_content, url)
 
@@ -130,11 +133,14 @@ def get_panoimg(id: str, subdivision: int) -> PIL.Image.Image:
     return loop.run_until_complete(async_get_panoimg(id, subdivision))
 
 async def async_content_to_geo(content: bytes) -> gpd.GeoDataFrame:
-    def content_to_geo(content: bytes) -> gpd.GeoDataFrame:
-        data = json.loads(content)
-        gdf = gpd.GeoDataFrame.from_features(data["features"], crs="EPSG:6668") # JGD2011 degree
-        gdf = gdf.to_crs("EPSG:3857") # WGS84 meter
-        return gdf
+    def content_to_geo(content: bytes | None) -> gpd.GeoDataFrame:
+        if content:
+            data = json.loads(content)
+            gdf = gpd.GeoDataFrame.from_features(data["features"], crs="EPSG:6668") # JGD2011 degree
+            gdf = gdf.to_crs("EPSG:3857") # WGS84 meter
+            return gdf
+        else:
+            return gpd.GeoDataFrame()
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, content_to_geo, content)
 
