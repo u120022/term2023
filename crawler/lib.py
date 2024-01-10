@@ -40,9 +40,10 @@ async def async_request_content(url: str) -> bytes | None:
         try:
             request = urllib.request.Request(url)
             with urllib.request.urlopen(request) as responce:
+                print("OK", url)
                 return responce.read()
-        except Exception:
-            return None
+        except Exception as e:
+            print(e, url)
     loop = asyncio.get_running_loop()
     return await loop.run_in_executor(None, request_content, url)
 

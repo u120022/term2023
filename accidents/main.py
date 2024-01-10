@@ -27,6 +27,8 @@ sy = y / 1000.0 % 100
 new_y = dy + my / 60.0 + sy / 3600.0
 
 # interprete as gis
+df["x"] = new_x
+df["y"] = new_y
 gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(new_x, new_y), crs="EPSG:4326")
 
 # insert to db
