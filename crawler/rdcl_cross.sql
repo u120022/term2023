@@ -1,5 +1,5 @@
-DROP TABLE IF EXISTS rdcl_crosspoint;
-CREATE TABLE rdcl_crosspoint AS (
+DROP TABLE IF EXISTS rdcl_tmp;
+CREATE TEMPORARY TABLE IF NOT EXISTS rdcl_tmp AS (
     SELECT
         geom
     FROM (
@@ -15,6 +15,24 @@ CREATE TABLE rdcl_crosspoint AS (
         geom
     HAVING 
         count(*) = 3 OR count(*) = 4
+);
+
+DROP INDEX IF EXISTS rdcl_tmp_idx;
+CREATE INDEX IF NOT EXISTS rdcl_tmp_idx ON rdcl_tmp USING GIST(geom);
+
+DROP INDEX IF EXISTS accident_cross_idx;
+CREATE INDEX IF NOT EXISTS accident_cross_idx ON accident_cross USING GIST(geometry);
+
+DROP TABLE IF EXISTS rdcl_crosspoint;
+CREATE TABLE IF NOT EXISTS rdcl_crosspoint AS (
+    SELECT 
+        t1.geom
+    FROM
+        rdcl_tmp AS t1
+    JOIN
+        accident_cross AS t2
+    ON
+        ST_DWithin(t1.geom, ST_Transform(t2.geometry, 3857), 10.0)
 );
 
 -- create index for spacial joining #1

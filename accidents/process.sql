@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS accident_cross AS (
     ORDER BY
         random()
     LIMIT
-        10000
+        1000
 );
 
 -- extract tile coordinates
@@ -18,22 +18,24 @@ CREATE TABLE IF NOT EXISTS accident_cross AS (
 DROP TABLE IF EXISTS tile_z16;
     CREATE TABLE IF NOT EXISTS tile_z16 AS (
     SELECT
-        ((x + 180) / 360 * pow(2, 16))::integer AS xtile,
-        ((1 - asinh(tan(radians(y))) / pi()) / 2 * pow(2, 16))::integer AS ytile
+        xtile_z16 AS xtile,
+        ytile_z16 AS ytile
     FROM
         accident_cross
     GROUP BY
-        xtile, ytile
+        xtile_z16,
+        ytile_z16
 );
 
 --   # zoom lv.18
 DROP TABLE IF EXISTS tile_z18;
     CREATE TABLE IF NOT EXISTS tile_z18 AS (
     SELECT
-        ((x + 180) / 360 * pow(2, 18))::integer AS xtile,
-        ((1 - asinh(tan(radians(y))) / pi()) / 2 * pow(2, 18))::integer AS ytile
+        xtile_z18 AS xtile,
+        ytile_z18 AS ytile
     FROM
         accident_cross
     GROUP BY
-        xtile, ytile
+        xtile_z18,
+        ytile_z18
 );

@@ -198,9 +198,15 @@ CREATE TABLE IF NOT EXISTS frame AS (
             array_agg(dist_2) AS db,
             array_agg(width_1) AS wa,
             array_agg(width_2) AS wb
-        FROM
-            flatten_frame
-        GROUP BY
+        FROM (
+            SELECT
+                *
+            FROM
+                flatten_frame
+            ORDER BY
+                geom,
+                width_1
+        ) GROUP BY
             geom
     )
 );
