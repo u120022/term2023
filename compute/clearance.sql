@@ -1,177 +1,122 @@
-DROP TABLE IF EXISTS tangent_tmp;
-CREATE TEMPORARY TABLE IF NOT EXISTS tangent_tmp AS (
+DROP TABLE IF EXISTS cp_area_corner;
+CREATE TEMPORARY TABLE IF NOT EXISTS cp_area_corner AS (
     SELECT
-        geom AS center,
-        i,
-        ST_Translate(geom, i*cos(pi()/2-azimuths[1]), i*sin(pi()/2-azimuths[1])) AS geom1,
-        ST_Translate(geom, i*cos(pi()/2-azimuths[2]), i*sin(pi()/2-azimuths[2])) AS geom2,
-        ST_Translate(geom, i*cos(pi()/2-azimuths[3]), i*sin(pi()/2-azimuths[3])) AS geom3,
-        ST_Translate(geom, i*cos(pi()/2-azimuths[4]), i*sin(pi()/2-azimuths[4])) AS geom4,
-        count
+        geom,
+        array_agg(end_geom) AS end_geoms,
+        count(*)
     FROM (
         SELECT
-            geom,
-            array_agg(azimuth) AS azimuths,
-            count(*)
-        FROM (
-            SELECT
-                ST_StartPoint(geom) AS geom,
-                ST_Azimuth(ST_StartPoint(geom), ST_EndPoint(geom)) AS azimuth
-            FROM
-                rdcl_crossline
-            ORDER BY azimuth
-        ) GROUP BY
-            geom
-    ), (SELECT GENERATE_SERIES(1, 20) AS i)
+            ST_StartPoint(geom) AS geom,
+            ST_EndPoint(geom) AS end_geom
+        FROM
+            crossline
+        ORDER BY
+            ST_Azimuth(ST_StartPoint(geom), ST_EndPoint(geom))
+    ) GROUP BY
+        geom
 );
 
--- for 3 branch cross
---   #1
-DROP TABLE IF EXISTS tangent;
-CREATE TEMPORARY TABLE tangent AS (
-    SELECT
-        center,
-        i,
-        1 AS dir,
-        ST_MakeLine(geom1, geom2) AS geom,
-        3 AS count
-    FROM
-        tangent_tmp
-    WHERE
-        count = 3
+DROP TABLE IF EXISTS cp_area;
+CREATE TABLE IF NOT EXISTS cp_area (
+    geom Geometry(Point, 6668),
+    area_geom Geometry(Polygon, 6668),
+    dir_seq Integer
 );
 
---   #2
+-- cp_area #1
 INSERT INTO
-    tangent (center, i, dir, geom, count)
+    cp_area
+    (geom, area_geom, dir_seq)
 SELECT
-    center,
-    i,
-    2 AS dir,
-    ST_MakeLine(geom2, geom3) AS geom,
-    3 AS count
+    geom,
+    ST_MakePolygon(ST_MakeLine(array[geom, end_geoms[1], end_geoms[2], geom])),
+    1
 FROM
-    tangent_tmp
-WHERE
-    count = 3;
+    cp_area_corner;
 
---   #3
+-- cp_area #2
 INSERT INTO
-    tangent (center, i, dir, geom, count)
+    cp_area
+    (geom, area_geom, dir_seq)
 SELECT
-    center,
-    i,
-    3 AS dir,
-    ST_MakeLine(geom3, geom1) AS geom,
-    3 AS count
+    geom,
+    ST_MakePolygon(ST_MakeLine(array[geom, end_geoms[2], end_geoms[3], geom])),
+    2
 FROM
-    tangent_tmp
-WHERE
-    count = 3;
+    cp_area_corner;
 
--- for 4 branch cross
---   #1
+-- cp_area #3
 INSERT INTO
-    tangent (center, i, dir, geom, count)
+    cp_area
+    (geom, area_geom, dir_seq)
 SELECT
-    center,
-    i,
-    1 AS dir,
-    ST_MakeLine(geom1, geom2) AS geom,
-    4 AS count
+    geom,
+    CASE 
+        WHEN count = 3 THEN ST_MakePolygon(ST_MakeLine(array[geom, end_geoms[3], end_geoms[1], geom]))
+        WHEN count = 4 THEN ST_MakePolygon(ST_MakeLine(array[geom, end_geoms[3], end_geoms[4], geom]))
+        ELSE NULL
+    END,
+    3
 FROM
-    tangent_tmp
-WHERE
-    count = 4;
+    cp_area_corner;
 
---   #2
+-- cp_area #4
 INSERT INTO
-    tangent (center, i, dir, geom, count)
+    cp_area
+    (geom, area_geom, dir_seq)
 SELECT
-    center,
-    i,
-    2 AS dir,
-    ST_MakeLine(geom2, geom3) AS geom,
-    4 AS count
+    geom,
+    CASE 
+        WHEN count = 3 THEN NULL
+        WHEN count = 4 THEN ST_MakePolygon(ST_MakeLine(array[geom, end_geoms[4], end_geoms[1], geom]))
+        ELSE NULL
+    END,
+    4
 FROM
-    tangent_tmp
-WHERE
-    count = 4;
-
---   #3
-INSERT INTO
-    tangent (center, i, dir, geom, count)
-SELECT
-    center,
-    i,
-    3 AS dir,
-    ST_MakeLine(geom3, geom4) AS geom,
-    4 AS count
-FROM
-    tangent_tmp
-WHERE
-    count = 4;
-
---   #4
-INSERT INTO
-    tangent (center, i, dir, geom, count)
-SELECT
-    center,
-    i,
-    4 AS dir,
-    ST_MakeLine(geom4, geom1) AS geom,
-    4 AS count
-FROM
-    tangent_tmp
-WHERE
-    count = 4;
-
--- create index for spacial joining
-DROP INDEX IF EXISTS tangent_idx;
-CREATE INDEX IF NOT EXISTS tangent_idx ON tangent USING GIST(geom);
+    cp_area_corner;
 
 -- extract clearance #1
-DROP TABLE IF EXISTS rdcl_clearance_1;
-CREATE TABLE IF NOT EXISTS rdcl_clearance_1 AS (
+DROP TABLE IF EXISTS cp_clearance_ob;
+CREATE TABLE IF NOT EXISTS cp_clearance_ob AS (
     SELECT
-        center,
-        dir,
-        min(i) AS dist
+        t1.geom,
+        t1.dir_seq,
+        ST_Distance(t1.geom::geography, ST_Collect(t2.geom)::geography) AS dist
     FROM 
-        tangent
+        cp_area
     AS t1 JOIN (
         SELECT
-            geometry AS geom
-        FROM
-            fgd
-        WHERE
-            type = '真幅道路' OR type = '庭園路等' OR type = '徒歩道'
-    ) AS t2 ON 
-        ST_Intersects(t1.geom, t2.geom)
-    GROUP BY
-        center,
-        dir
-);
-
--- extract clearance #2
-DROP TABLE IF EXISTS rdcl_clearance_2;
-CREATE TABLE IF NOT EXISTS rdcl_clearance_2 AS (
-    SELECT
-        center,
-        dir,
-        min(i) AS dist
-    FROM 
-        tangent
-    AS t1 JOIN (
-        SELECT
-            geometry AS geom
+            geom
         FROM
             fgd
         WHERE
             type = '堅ろう建物' OR type = '普通建物' OR type = '普通無壁舎'
     ) AS t2 ON 
-        ST_Intersects(t1.geom, t2.geom)
+        ST_Intersects(t1.area_geom, t2.geom)
     GROUP BY
-        center,
-        dir
+        t1.geom,
+        t1.dir_seq
+);
+
+-- extract clearance #2
+DROP TABLE IF EXISTS cp_clearance_noob;
+CREATE TABLE IF NOT EXISTS cp_clearance_noob AS (
+    SELECT
+        t1.geom,
+        t1.dir_seq,
+        ST_Distance(t1.geom::geography, ST_Collect(t2.geom)::geography) AS dist
+    FROM 
+        cp_area
+    AS t1 JOIN (
+        SELECT
+            geom
+        FROM
+            fgd
+        WHERE
+            type = '真幅道路' OR type = '庭園路等' OR type = '徒歩道'
+    ) AS t2 ON 
+        ST_Intersects(t1.area_geom, t2.geom)
+    GROUP BY
+        t1.geom,
+        t1.dir_seq
 );

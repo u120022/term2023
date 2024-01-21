@@ -1,138 +1,162 @@
 -- subdivide into line segments and compute radian
-DROP TABLE IF EXISTS rdcl_tmp;
-CREATE TEMPORARY TABLE IF NOT EXISTS rdcl_tmp AS (
+DROP TABLE IF EXISTS cl_segment;
+CREATE TEMPORARY TABLE IF NOT EXISTS cl_segment AS (
     SELECT
-        segment,
-        ST_Centroid(geom) AS geom,
-        rad
+        geom,
+        ST_Centroid(segment_geom) AS rayorigin_geom,
+        azimuth
     FROM (
         SELECT
-            geom AS segment,
-            (ST_DumpSegments(ST_Segmentize(geom, 4.0))).geom,
-            ST_Azimuth(ST_StartPoint(geom), ST_EndPoint(geom)) AS rad
+            geom,
+            (ST_DumpSegments(ST_Segmentize(geom::geography, 4.0)::geometry)).geom AS segment_geom,
+            ST_Azimuth(ST_StartPoint(geom), ST_EndPoint(geom)) AS azimuth
         FROM
-            rdcl_crossline
+            crossline
     )
 );
 
--- line normal (front face)
-DROP TABLE IF EXISTS rdcl_normal;
-CREATE TEMPORARY TABLE IF NOT EXISTS rdcl_normal AS (
-    SELECT
-        segment,
-        geom,
-        ST_MakeLine(geom, ST_Translate(geom, 20.0*cos(pi()-rad), 20.0*sin(pi()-rad))) AS normal,
-        TRUE AS face
-    FROM
-        rdcl_tmp
+DROP TABLE IF EXISTS cl_normal;
+CREATE TABLE IF NOT EXISTS cl_normal (
+    geom Geometry(LineString, 6668),
+    rayorigin_geom Geometry(Point, 6668),
+    normal_geom Geometry(LineString, 6668),
+    face Boolean
 );
+
+-- line normal (front face)
+INSERT INTO
+    cl_normal
+    (geom, rayorigin_geom, normal_geom, face)
+SELECT
+    geom,
+    rayorigin_geom,
+    ST_MakeLine(
+        rayorigin_geom,
+        ST_Project(
+            rayorigin_geom::geography,
+            15.0,
+            azimuth + 0.5 * pi()
+        )::geometry
+    ),
+    True
+FROM
+    cl_segment;
 
 -- line normal (back face)
 INSERT INTO
-    rdcl_normal
-    (segment, geom, normal, face)
+    cl_normal
+    (geom, rayorigin_geom, normal_geom, face)
 SELECT
-    segment,
     geom,
-    ST_MakeLine(geom, ST_Translate(geom, 20.0*cos(-rad), 20.0*sin(-rad))) AS normal,
-    FALSE AS face
+    rayorigin_geom,
+    ST_MakeLine(
+        rayorigin_geom,
+        ST_Project(
+            rayorigin_geom::geography,
+            15.0,
+            azimuth - 0.5 * pi()
+        )::geometry
+    ),
+    False
 FROM 
-    rdcl_tmp;
-
--- index for spacial joinning
-DROP INDEX IF EXISTS rdcl_normal_idx;
-CREATE INDEX IF NOT EXISTS rdcl_normal_idx ON rdcl_normal USING GIST(normal);
+    cl_segment;
 
 -- width with side walk
-DROP TABLE IF EXISTS rdcl_width_sw;
-CREATE TABLE IF NOT EXISTS rdcl_width_sw AS (
+DROP TABLE IF EXISTS cl_width_sw;
+CREATE TABLE IF NOT EXISTS cl_width_sw AS (
     SELECT
-        segment AS geom,
+        geom,
         percentile_cont(0.5) WITHIN GROUP (ORDER BY width) AS width
     FROM (
         SELECT
-            segment,
             geom,
+            rayorigin_geom,
             sum(width) AS width
         FROM (
             SELECT
-                segment,
                 geom,
+                rayorigin_geom,
                 face,
                 min(width) AS width
             FROM (
                 SELECT
-                    t1.segment,
                     t1.geom,
-                    ST_Distance(t1.geom, ST_Intersection(t1.normal, t2.geom)) AS width,
+                    t1.rayorigin_geom,
+                    ST_Distance(
+                        t1.rayorigin_geom::geography,
+                        ST_Intersection(t1.normal_geom, t2.geom)::geography
+                    ) AS width,
                     t1.face
                 FROM
-                    rdcl_normal AS t1
+                    cl_normal AS t1
                 JOIN (
                     SELECT
-                        geometry AS geom
+                        geom
                     FROM
                         fgd
                     WHERE
                         type = '真幅道路' OR type = '庭園路等' OR type = '徒歩道'
                 ) AS t2 ON
-                    ST_Intersects(t1.normal, t2.geom)
+                    ST_Intersects(t1.normal_geom, t2.geom)
             ) GROUP BY
-                segment,
                 geom,
+                rayorigin_geom,
                 face
         ) GROUP BY
-            segment,
-            geom
+            geom,
+            rayorigin_geom
         HAVING
-            count(*) = 2 AND sum(width) < 20.0
+            count(*) = 2
     ) GROUP BY
-        segment
+        geom
 );
 
 -- width without side walk
-DROP TABLE IF EXISTS rdcl_width_nosw;
-CREATE TABLE IF NOT EXISTS rdcl_width_nosw AS (
+DROP TABLE IF EXISTS cl_width_nosw;
+CREATE TABLE IF NOT EXISTS cl_width_nosw AS (
     SELECT
-        segment AS geom,
+        geom,
         percentile_cont(0.5) WITHIN GROUP (ORDER BY width) AS width
     FROM (
         SELECT
-            segment,
             geom,
+            rayorigin_geom,
             sum(width) AS width
         FROM (
             SELECT
-                segment,
                 geom,
+                rayorigin_geom,
                 face,
                 min(width) AS width
             FROM (
                 SELECT
-                    t1.segment,
                     t1.geom,
-                    ST_Distance(t1.geom, ST_Intersection(t1.normal, t2.geom)) AS width,
+                    t1.rayorigin_geom,
+                    ST_Distance(
+                        t1.rayorigin_geom,
+                        ST_Intersection(t1.normal_geom, t2.geom)
+                    ) AS width,
                     t1.face
                 FROM
-                    rdcl_normal AS t1
+                    cl_normal AS t1
                 JOIN (
                     SELECT
-                        geometry AS geom
+                        geom
                     FROM
                         fgd
                     WHERE
                         type = '真幅道路' OR type = '庭園路等' OR type = '徒歩道' OR type = '歩道'
                 ) AS t2 ON
-                    ST_Intersects(t1.normal, t2.geom)
+                    ST_Intersects(t1.normal_geom, t2.geom)
             ) GROUP BY
-                segment,
                 geom,
+                rayorigin_geom,
                 face
         ) GROUP BY
-            segment,
-            geom
+            geom,
+            rayorigin_geom
         HAVING
-            count(*) = 2 AND sum(width) < 20.0
+            count(*) = 2
     ) GROUP BY
-        segment
+        geom
 );

@@ -43,6 +43,7 @@ df["ytile_z16"] = ytile_z16
 df["xtile_z18"] = xtile_z18
 df["ytile_z18"] = ytile_z18
 gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(x, y), crs="EPSG:6668")
+gdf.rename_geometry("geom", inplace=True)
 
 # insert to db
 engine = sqlalchemy.create_engine("postgresql://postgres:0@localhost:5432/postgres")

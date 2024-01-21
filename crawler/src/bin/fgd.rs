@@ -122,8 +122,10 @@ async fn main() {
                         }
                     };
 
+                    let r#type = properties.get("type").and_then(|inner| inner.as_str());
+
                     let status = sqlx::query("INSERT INTO fgd (type, geom) VALUES ($1, ST_SetSRID(ST_GeomFromGeoJSON($2), 6668))")
-                        .bind(properties.get("type"))
+                        .bind(r#type)
                         .bind(geometry.to_string())
                         .execute(&pool)
                         .await;

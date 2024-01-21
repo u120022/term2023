@@ -1,6 +1,5 @@
--- dir order
-DROP TABLE IF EXISTS tmp;
-CREATE TEMPORARY TABLE IF NOT EXISTS tmp AS (
+DROP TABLE IF EXISTS cl_angle;
+CREATE TEMPORARY TABLE IF NOT EXISTS cl_angle AS (
     SELECT
         geom,
         array_agg(azimuth) AS azimuths,
@@ -10,194 +9,160 @@ CREATE TEMPORARY TABLE IF NOT EXISTS tmp AS (
             ST_StartPoint(geom) AS geom,
             ST_Azimuth(ST_StartPoint(geom), ST_EndPoint(geom)) AS azimuth
         FROM
-            rdcl_crossline
+            crossline
         ORDER BY
             azimuth
     ) GROUP BY
         geom
 );
 
--- for 3 branch cross
---   #1
-DROP TABLE IF EXISTS scafold;
-CREATE TEMPORARY TABLE IF NOT EXISTS scafold AS (
-    SELECT
-        geom,
-        1 AS dir,
-        azimuths[2] - azimuths[1] AS angle,
-        count
-    FROM
-        tmp
-    WHERE
-        count = 3
+-- create base for data frame
+DROP TABLE IF EXISTS scaffold;
+CREATE TEMPORARY TABLE IF NOT EXISTS scaffold (
+    geom Geometry(Point, 6668),
+    angle Real,
+    dir_seq Integer,
+    count Integer
 );
 
---   #2
+-- scaffold #1
 INSERT INTO
-    scafold
-    (geom, dir, angle, count)
+    scaffold
+    (geom, angle, dir_seq, count)
 SELECT
     geom,
-    2 AS dir,
-    azimuths[3] - azimuths[2] AS angle,
+    azimuths[2] - azimuths[1],
+    1,
     count
 FROM
-    tmp
-WHERE
-    count = 3;
+    cl_angle;
 
---   #3
+-- scaffold #2
 INSERT INTO
-    scafold
-    (geom, dir, angle, count)
+    scaffold
+    (geom, angle, dir_seq, count)
 SELECT
     geom,
-    3 AS dir,
-    2*pi() + azimuths[1] - azimuths[3] AS angle,
+    azimuths[3] - azimuths[2],
+    2,
     count
 FROM
-    tmp
-WHERE
-    count = 3;
+    cl_angle;
 
--- for 4 branch cross
---   #1
+-- scaffold #3
 INSERT INTO
-    scafold
-    (geom, dir, angle, count)
+    scaffold
+    (geom, angle, dir_seq, count)
 SELECT
     geom,
-    1 AS dir,
-    azimuths[2] - azimuths[1] AS angle,
+    CASE
+        WHEN count = 3 THEN azimuths[1] - azimuths[3] + 2.0 * pi()
+        WHEN count = 4 THEN azimuths[4] - azimuths[3]
+        ELSE NULL
+    END,
+    3,
     count
 FROM
-    tmp
-WHERE
-    count = 4;
+    cl_angle;
 
---   #2
+-- scaffold #4
 INSERT INTO
-    scafold
-    (geom, dir, angle, count)
+    scaffold
+    (geom, angle, dir_seq, count)
 SELECT
     geom,
-    2 AS dir,
-    azimuths[3] - azimuths[2] AS angle,
+    CASE
+        WHEN count = 3 THEN NULL
+        WHEN count = 4 THEN azimuths[1] - azimuths[4] + 2.0 * pi()
+        ELSE NULL
+    END,
+    4,
     count
 FROM
-    tmp
-WHERE
-    count = 4;
-
---   #3
-INSERT INTO
-    scafold
-    (geom, dir, angle, count)
-SELECT
-    geom,
-    3 AS dir,
-    azimuths[4] - azimuths[3] AS angle,
-    count
-FROM
-    tmp
-WHERE
-    count = 4;
-
---   #4
-INSERT INTO
-    scafold
-    (geom, dir, angle, count)
-SELECT
-    geom,
-    4 AS dir,
-    2*pi() + azimuths[1] - azimuths[4] AS angle,
-    count
-FROM
-    tmp
-WHERE
-    count = 4;
+    cl_angle;
 
 -- merge `clearance` and `width`
 DROP TABLE IF EXISTS flatten_frame;
 CREATE TEMPORARY TABLE IF NOT EXISTS flatten_frame AS (
     SELECT
         t1.*,
-        t2.dist AS dist_1,
-        t3.dist AS dist_2,
-        t4.widths_1[t1.dir] AS width_1,
-        t4.widths_2[t1.dir] AS width_2
+        t2.dist AS dist_ob,
+        t3.dist AS dist_noob,
+        t4.widths_sw[t1.dir_seq] AS width_sw,
+        t4.widths_nosw[t1.dir_seq] AS width_nosw
     FROM
-        scafold AS t1
+        scaffold AS t1
     LEFT JOIN
-        rdcl_clearance_1 AS t2
+        cp_clearance_ob AS t2
     ON 
-        t1.geom = t2.center AND t1.dir = t2.dir
+        t1.geom = t2.geom AND t1.dir_seq = t2.dir_seq
     LEFT JOIN
-        rdcl_clearance_2 AS t3
+        cp_clearance_noob AS t3
     ON
-        t1.geom = t3.center AND t1.dir = t3.dir
+        t1.geom = t3.geom AND t1.dir_seq = t3.dir_seq
     LEFT JOIN (
         SELECT
-            center,
-            array_agg(width_1) AS widths_1,
-            array_agg(width_2) AS widths_2
+            geom,
+            array_agg(width_sw) AS widths_sw,
+            array_agg(width_nosw) AS widths_nosw
         FROM (
             SELECT
-                ST_StartPoint(t1.geom) AS center,
+                ST_StartPoint(t1.geom) AS geom,
                 ST_Azimuth(ST_StartPoint(t1.geom), ST_EndPoint(t1.geom)) AS azimuth,
-                t1.width AS width_1,
-                t2.width AS width_2
+                t1.width AS width_sw,
+                t2.width AS width_nosw
             FROM
-                rdcl_width_sw AS t1
+                cl_width_sw AS t1
             LEFT JOIN
-                rdcl_width_nosw AS t2
+                cl_width_nosw AS t2
             ON
                 t1.geom = t2.geom
             ORDER BY
                 azimuth
         ) GROUP BY
-            center
+            geom
     ) AS t4 ON
-        t1.geom = t4.center
+        t1.geom = t4.geom
 );
 
--- compress
+-- dense data frame
 DROP TABLE IF EXISTS frame;
 CREATE TABLE IF NOT EXISTS frame AS (
     SELECT
         geom,
-        a[1] AS a1,
-        a[2] AS a2,
-        a[3] AS a3,
-        a[4] AS a4,
 
-        da[1] AS da1,
-        da[2] AS da2,
-        da[3] AS da3,
-        da[4] AS da4,
+        angles[1] AS angle_1,
+        angles[2] AS angle_2,
+        angles[3] AS angle_3,
+        angles[4] AS angle_4,
 
-        db[1] AS db1,
-        db[2] AS db2,
-        db[3] AS db3,
-        db[4] AS db4,
+        dists_ob[1] AS dist_ob_1,
+        dists_ob[2] AS dist_ob_2,
+        dists_ob[3] AS dist_ob_3,
+        dists_ob[4] AS dist_ob_4,
 
-        wa[1] AS wa1,
-        wa[2] AS wa2,
-        wa[3] AS wa3,
-        wa[4] AS wa4,
+        dists_noob[1] AS dist_noob_1,
+        dists_noob[2] AS dist_noob_2,
+        dists_noob[3] AS dist_noob_3,
+        dists_noob[4] AS dist_noob_4,
 
-        wb[1] AS wb1,
-        wb[2] AS wb2,
-        wb[3] AS wb3,
-        wb[4] AS wb4
+        widths_sw[1] AS width_sw_1,
+        widths_sw[2] AS width_sw_2,
+        widths_sw[3] AS width_sw_3,
+        widths_sw[4] AS width_sw_4,
+
+        widths_nosw[1] AS widths_nosw_1,
+        widths_nosw[2] AS widths_nosw_2,
+        widths_nosw[3] AS widths_nosw_3,
+        widths_nosw[4] AS widths_nosw_4
     FROM (
         SELECT
             geom,
-            array_agg(angle) AS a,
-            array_agg(dist_1) AS da,
-            array_agg(dist_2) AS db,
-            array_agg(width_1) AS wa,
-            array_agg(width_2) AS wb
+            array_agg(angle) AS angles,
+            array_agg(dist_ob) AS dists_ob,
+            array_agg(dist_noob) AS dists_noob,
+            array_agg(width_sw) AS widths_sw,
+            array_agg(width_nosw) AS widths_nosw
         FROM (
             SELECT
                 *
@@ -205,7 +170,7 @@ CREATE TABLE IF NOT EXISTS frame AS (
                 flatten_frame
             ORDER BY
                 geom,
-                width_1
+                width_sw
         ) GROUP BY
             geom
     )

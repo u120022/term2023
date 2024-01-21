@@ -1,6 +1,6 @@
 -- extract cross only
-DROP TABLE IF EXISTS accident_hit;
-CREATE TABLE IF NOT EXISTS accident_hit AS (
+DROP TABLE IF EXISTS accident_target;
+CREATE TABLE IF NOT EXISTS accident_target AS (
     SELECT
         *
     FROM
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS accident_hit AS (
         10
 );
 
-\COPY (SELECT xtile_z16, ytile_z16 FROM accident_hit) TO 'tile_z16.csv' DELIMITER ',' CSV;
+\COPY (SELECT xtile_z16, ytile_z16 FROM accident_target) TO 'tile_z16.csv' DELIMITER ',' CSV;
 
-\COPY (SELECT xtile_z18, ytile_z18 FROM accident_hit) TO 'tile_z18.csv' DELIMITER ',' CSV;
+\COPY (SELECT xtile_z18, ytile_z18 FROM accident_target) TO 'tile_z18.csv' DELIMITER ',' CSV;
 
