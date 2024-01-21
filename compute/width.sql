@@ -66,7 +66,10 @@ DROP TABLE IF EXISTS cl_width_sw;
 CREATE TABLE IF NOT EXISTS cl_width_sw AS (
     SELECT
         geom,
-        percentile_cont(0.5) WITHIN GROUP (ORDER BY width) AS width
+        COALESCE(
+            percentile_cont(0.5) WITHIN GROUP (ORDER BY width),
+            30.0
+        ) AS width
     FROM (
         SELECT
             geom,
@@ -89,7 +92,7 @@ CREATE TABLE IF NOT EXISTS cl_width_sw AS (
                     t1.face
                 FROM
                     cl_normal AS t1
-                JOIN (
+                LEFT JOIN (
                     SELECT
                         geom
                     FROM
@@ -116,7 +119,10 @@ DROP TABLE IF EXISTS cl_width_nosw;
 CREATE TABLE IF NOT EXISTS cl_width_nosw AS (
     SELECT
         geom,
-        percentile_cont(0.5) WITHIN GROUP (ORDER BY width) AS width
+        COALESCE(
+            percentile_cont(0.5) WITHIN GROUP (ORDER BY width),
+            30.0
+        ) AS width
     FROM (
         SELECT
             geom,
@@ -139,7 +145,7 @@ CREATE TABLE IF NOT EXISTS cl_width_nosw AS (
                     t1.face
                 FROM
                     cl_normal AS t1
-                JOIN (
+                LEFT JOIN (
                     SELECT
                         geom
                     FROM

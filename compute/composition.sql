@@ -72,7 +72,7 @@ INSERT INTO
 SELECT
     geom,
     CASE
-        WHEN count = 3 THEN NULL
+        WHEN count = 3 THEN 9999.0
         WHEN count = 4 THEN azimuths[1] - azimuths[4] + 2.0 * pi()
         ELSE NULL
     END,
@@ -88,8 +88,8 @@ CREATE TEMPORARY TABLE IF NOT EXISTS flatten_frame AS (
         t1.*,
         t2.dist AS dist_ob,
         t3.dist AS dist_noob,
-        t4.widths_sw[t1.dir_seq] AS width_sw,
-        t4.widths_nosw[t1.dir_seq] AS width_nosw
+        COALESCE(t4.widths_sw[t1.dir_seq], 9999.0) AS width_sw,
+        COALESCE(t4.widths_nosw[t1.dir_seq], 9999.0) AS width_nosw
     FROM
         scaffold AS t1
     LEFT JOIN
@@ -131,6 +131,8 @@ CREATE TABLE IF NOT EXISTS frame AS (
     SELECT
         geom,
 
+        count,
+
         angles[1] AS angle_1,
         angles[2] AS angle_2,
         angles[3] AS angle_3,
@@ -158,6 +160,7 @@ CREATE TABLE IF NOT EXISTS frame AS (
     FROM (
         SELECT
             geom,
+            count,
             array_agg(angle) AS angles,
             array_agg(dist_ob) AS dists_ob,
             array_agg(dist_noob) AS dists_noob,
@@ -172,6 +175,9 @@ CREATE TABLE IF NOT EXISTS frame AS (
                 geom,
                 width_sw
         ) GROUP BY
-            geom
+            geom,
+            count
+        ORDER BY
+            count
     )
 );

@@ -81,10 +81,16 @@ CREATE TABLE IF NOT EXISTS cp_clearance_ob AS (
     SELECT
         t1.geom,
         t1.dir_seq,
-        ST_Distance(t1.geom::geography, ST_Collect(t2.geom)::geography) AS dist
+        CASE
+            WHEN t1.area_geom IS NULL THEN 9999.0
+            ELSE COALESCE(
+                ST_Distance(t1.geom::geography, ST_Collect(t2.geom)::geography),
+                30.0
+            )
+        END AS dist
     FROM 
         cp_area
-    AS t1 JOIN (
+    AS t1 LEFT JOIN (
         SELECT
             geom
         FROM
@@ -95,6 +101,7 @@ CREATE TABLE IF NOT EXISTS cp_clearance_ob AS (
         ST_Intersects(t1.area_geom, t2.geom)
     GROUP BY
         t1.geom,
+        t1.area_geom,
         t1.dir_seq
 );
 
@@ -104,10 +111,16 @@ CREATE TABLE IF NOT EXISTS cp_clearance_noob AS (
     SELECT
         t1.geom,
         t1.dir_seq,
-        ST_Distance(t1.geom::geography, ST_Collect(t2.geom)::geography) AS dist
+        CASE
+            WHEN t1.area_geom IS NULL THEN 9999.0
+            ELSE COALESCE(
+                ST_Distance(t1.geom::geography, ST_Collect(t2.geom)::geography),
+                30.0
+            )
+        END AS dist
     FROM 
         cp_area
-    AS t1 JOIN (
+    AS t1 LEFT JOIN (
         SELECT
             geom
         FROM
@@ -118,5 +131,6 @@ CREATE TABLE IF NOT EXISTS cp_clearance_noob AS (
         ST_Intersects(t1.area_geom, t2.geom)
     GROUP BY
         t1.geom,
+        t1.area_geom,
         t1.dir_seq
 );
