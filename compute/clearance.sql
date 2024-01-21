@@ -1,3 +1,6 @@
+DROP INDEX idx_fgd;
+CREATE INDEX idx_fgd ON fgd USING GIST(geom);
+
 DROP TABLE IF EXISTS cp_area_corner;
 CREATE TEMPORARY TABLE IF NOT EXISTS cp_area_corner AS (
     SELECT
@@ -74,6 +77,9 @@ SELECT
     4
 FROM
     cp_area_corner;
+
+DROP INDEX idx_cp_area;
+CREATE INDEX idx_cp_area ON cp_area USING GIST(area_geom);
 
 -- extract clearance #1
 DROP TABLE IF EXISTS cp_clearance_ob;

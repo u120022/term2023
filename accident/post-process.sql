@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS accident_target AS (
     ORDER BY
         random()
     LIMIT
-        10
+        1000
 );
 
 \COPY (SELECT xtile_z16, ytile_z16 FROM accident_target) TO 'tile_z16.csv' DELIMITER ',' CSV;

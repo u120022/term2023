@@ -1,3 +1,6 @@
+DROP INDEX idx_fgd;
+CREATE INDEX idx_fgd ON fgd USING GIST(geom);
+
 -- subdivide into line segments and compute radian
 DROP TABLE IF EXISTS cl_segment;
 CREATE TEMPORARY TABLE IF NOT EXISTS cl_segment AS (
@@ -60,6 +63,9 @@ SELECT
     False
 FROM 
     cl_segment;
+
+DROP INDEX idx_cl_normal;
+CREATE INDEX idx_cl_normal ON cl_normal USING GIST(normal_geom);
 
 -- width with side walk
 DROP TABLE IF EXISTS cl_width_sw;

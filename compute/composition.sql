@@ -90,7 +90,7 @@ CREATE TEMPORARY TABLE IF NOT EXISTS flatten_frame AS (
         t3.dist AS dist_noob,
         COALESCE(t4.widths_sw[t1.dir_seq], 9999.0) AS width_sw,
         COALESCE(t4.widths_nosw[t1.dir_seq], 9999.0) AS width_nosw,
-        t5.tag
+        t5.category
     FROM
         scaffold AS t1
     LEFT JOIN
@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS frame AS (
         widths_nosw[3] AS widths_nosw_3,
         widths_nosw[4] AS widths_nosw_4,
 
-        tag
+        category
     FROM (
         SELECT
             geom,
@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS frame AS (
             array_agg(dist_noob) AS dists_noob,
             array_agg(width_sw) AS widths_sw,
             array_agg(width_nosw) AS widths_nosw,
-            tag
+            category
         FROM (
             SELECT
                 *
@@ -180,13 +180,12 @@ CREATE TABLE IF NOT EXISTS frame AS (
                 flatten_frame
             ORDER BY
                 geom,
-                width_sw
+                dir_seq
         ) GROUP BY
             geom,
             count,
-            tag
-        ORDER BY
-            count,
-            tag
+            category
     )
 );
+
+\COPY (SELECT * FROM frame) TO 'frame.csv' HEADER DELIMITER ',' CSV;
