@@ -89,7 +89,8 @@ CREATE TEMPORARY TABLE IF NOT EXISTS flatten_frame AS (
         t2.dist AS dist_ob,
         t3.dist AS dist_noob,
         COALESCE(t4.widths_sw[t1.dir_seq], 9999.0) AS width_sw,
-        COALESCE(t4.widths_nosw[t1.dir_seq], 9999.0) AS width_nosw
+        COALESCE(t4.widths_nosw[t1.dir_seq], 9999.0) AS width_nosw,
+        t5.tag
     FROM
         scaffold AS t1
     LEFT JOIN
@@ -123,6 +124,10 @@ CREATE TEMPORARY TABLE IF NOT EXISTS flatten_frame AS (
             geom
     ) AS t4 ON
         t1.geom = t4.geom
+    JOIN
+        crosspoint AS t5
+    ON
+        t1.geom = t5.geom
 );
 
 -- dense data frame
@@ -130,7 +135,6 @@ DROP TABLE IF EXISTS frame;
 CREATE TABLE IF NOT EXISTS frame AS (
     SELECT
         geom,
-
         count,
 
         angles[1] AS angle_1,
@@ -156,7 +160,9 @@ CREATE TABLE IF NOT EXISTS frame AS (
         widths_nosw[1] AS widths_nosw_1,
         widths_nosw[2] AS widths_nosw_2,
         widths_nosw[3] AS widths_nosw_3,
-        widths_nosw[4] AS widths_nosw_4
+        widths_nosw[4] AS widths_nosw_4,
+
+        tag
     FROM (
         SELECT
             geom,
@@ -165,7 +171,8 @@ CREATE TABLE IF NOT EXISTS frame AS (
             array_agg(dist_ob) AS dists_ob,
             array_agg(dist_noob) AS dists_noob,
             array_agg(width_sw) AS widths_sw,
-            array_agg(width_nosw) AS widths_nosw
+            array_agg(width_nosw) AS widths_nosw,
+            tag
         FROM (
             SELECT
                 *
@@ -176,8 +183,10 @@ CREATE TABLE IF NOT EXISTS frame AS (
                 width_sw
         ) GROUP BY
             geom,
-            count
+            count,
+            tag
         ORDER BY
-            count
+            count,
+            tag
     )
 );
