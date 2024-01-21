@@ -134,35 +134,41 @@ CREATE TEMPORARY TABLE IF NOT EXISTS flatten_frame AS (
 DROP TABLE IF EXISTS frame;
 CREATE TABLE IF NOT EXISTS frame AS (
     SELECT
-        geom,
-        count,
+        t1.geom AS geom,
+        t1.count AS count,
 
-        angles[1] AS angle_1,
-        angles[2] AS angle_2,
-        angles[3] AS angle_3,
-        angles[4] AS angle_4,
+        t2."CITY_CODE" AS city_code,
+        t2."POP2020" AS pop,
+        t2."POP2020A" AS pop_1,
+        t2."POP2020B" AS pop_2,
+        t2."POP2020C" AS pop_3,
 
-        dists_ob[1] AS dist_ob_1,
-        dists_ob[2] AS dist_ob_2,
-        dists_ob[3] AS dist_ob_3,
-        dists_ob[4] AS dist_ob_4,
+        t1.angles[1] AS angle_1,
+        t1.angles[2] AS angle_2,
+        t1.angles[3] AS angle_3,
+        t1.angles[4] AS angle_4,
 
-        dists_noob[1] AS dist_noob_1,
-        dists_noob[2] AS dist_noob_2,
-        dists_noob[3] AS dist_noob_3,
-        dists_noob[4] AS dist_noob_4,
+        t1.dists_ob[1] AS dist_ob_1,
+        t1.dists_ob[2] AS dist_ob_2,
+        t1.dists_ob[3] AS dist_ob_3,
+        t1.dists_ob[4] AS dist_ob_4,
 
-        widths_sw[1] AS width_sw_1,
-        widths_sw[2] AS width_sw_2,
-        widths_sw[3] AS width_sw_3,
-        widths_sw[4] AS width_sw_4,
+        t1.dists_noob[1] AS dist_noob_1,
+        t1.dists_noob[2] AS dist_noob_2,
+        t1.dists_noob[3] AS dist_noob_3,
+        t1.dists_noob[4] AS dist_noob_4,
 
-        widths_nosw[1] AS widths_nosw_1,
-        widths_nosw[2] AS widths_nosw_2,
-        widths_nosw[3] AS widths_nosw_3,
-        widths_nosw[4] AS widths_nosw_4,
+        t1.widths_sw[1] AS width_sw_1,
+        t1.widths_sw[2] AS width_sw_2,
+        t1.widths_sw[3] AS width_sw_3,
+        t1.widths_sw[4] AS width_sw_4,
 
-        category
+        t1.widths_nosw[1] AS width_nosw_1,
+        t1.widths_nosw[2] AS width_nosw_2,
+        t1.widths_nosw[3] AS width_nosw_3,
+        t1.widths_nosw[4] AS width_nosw_4,
+
+        t1.category
     FROM (
         SELECT
             geom,
@@ -185,7 +191,10 @@ CREATE TABLE IF NOT EXISTS frame AS (
             geom,
             count,
             category
-    )
+    ) AS t1 JOIN
+        population
+    AS t2 ON
+        ST_Intersects(t1.geom, t2.geom)
 );
 
 \COPY (SELECT * FROM frame) TO 'frame.csv' HEADER DELIMITER ',' CSV;

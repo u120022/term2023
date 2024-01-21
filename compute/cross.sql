@@ -41,6 +41,22 @@ CREATE TABLE IF NOT EXISTS crosspoint (
     category Integer
 );
 
+-- true accident (death)
+INSERT INTO
+    crosspoint
+    (geom, category)
+SELECT 
+    ST_ClosestPoint(ST_Collect(t1.geom), t2.geom),
+    2
+FROM
+    entire_crosspoint AS t1
+JOIN (
+    SELECT geom FROM accident_target WHERE "事故内容" = 1
+) AS t2 ON
+    ST_DWithin(t1.geom::geography, t2.geom::geography, 30.0)
+GROUP BY
+    t2.geom;
+
 -- true accident
 INSERT INTO
     crosspoint
@@ -50,9 +66,9 @@ SELECT
     1
 FROM
     entire_crosspoint AS t1
-JOIN
-    accident_target AS t2
-ON
+JOIN (
+    SELECT geom FROM accident_target WHERE "事故内容" = 2
+) AS t2 ON
     ST_DWithin(t1.geom::geography, t2.geom::geography, 30.0)
 GROUP BY
     t2.geom;

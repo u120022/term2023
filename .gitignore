@@ -1,1 +1,6 @@
 *.csv
+*.png
+*.dbf
+*.prj
+*.shp
+*.shx
