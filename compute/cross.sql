@@ -38,66 +38,63 @@ CREATE INDEX IF NOT EXISTS idx_entire_crosspoint ON entire_crosspoint USING GIST
 DROP TABLE IF EXISTS crosspoint;
 CREATE TABLE IF NOT EXISTS crosspoint (
     geom Geometry(Point, 6668),
-    category Integer
+    accident boolean,
+    accident_count Integer
 );
-
--- true accident (death)
-INSERT INTO
-    crosspoint
-    (geom, category)
-SELECT 
-    ST_ClosestPoint(ST_Collect(t1.geom), t2.geom),
-    2
-FROM
-    entire_crosspoint AS t1
-JOIN (
-    SELECT geom FROM accident_target WHERE "事故内容" = 1
-) AS t2 ON
-    ST_DWithin(t1.geom::geography, t2.geom::geography, 30.0)
-GROUP BY
-    t2.geom;
 
 -- true accident
 INSERT INTO
     crosspoint
-    (geom, category)
-SELECT 
-    ST_ClosestPoint(ST_Collect(t1.geom), t2.geom),
-    1
-FROM
-    entire_crosspoint AS t1
-JOIN (
-    SELECT geom FROM accident_target WHERE "事故内容" = 2
-) AS t2 ON
-    ST_DWithin(t1.geom::geography, t2.geom::geography, 30.0)
-GROUP BY
-    t2.geom;
+    (geom, accident, accident_count)
+SELECT
+    geom,
+    true,
+    count(*)
+FROM (
+    SELECT 
+        ST_ClosestPoint(ST_Collect(t1.geom), t2.geom) AS geom
+    FROM
+        entire_crosspoint AS t1
+    JOIN (
+        SELECT geom FROM accident_target
+    ) AS t2 ON
+        ST_DWithin(t1.geom::geography, t2.geom::geography, 30.0)
+    GROUP BY
+        t2.geom
+) GROUP BY
+    geom;
 
 -- false accident
 INSERT INTO
     crosspoint
-    (geom, category)
+    (geom, accident, accident_count)
 SELECT
-    t2.geom,
-    0
+    geom,
+    false,
+    count(*)
 FROM (
     SELECT
-        t1.geom AS geom,
-        ST_Collect(t2.geom) AS accident_geom
-    FROM
-        accident_target AS t1
-    JOIN
-        accident AS t2
+        t2.geom AS geom
+    FROM (
+        SELECT
+            t1.geom AS geom,
+            ST_Collect(t2.geom) AS accident_geom
+        FROM
+            accident_target AS t1
+        JOIN
+            accident AS t2
+        ON
+            ST_DWithin(t1.geom::geography, t2.geom::geography, 100.0)
+        GROUP BY
+            t1.geom
+    ) AS t1 JOIN
+        entire_crosspoint AS t2
     ON
         ST_DWithin(t1.geom::geography, t2.geom::geography, 100.0)
-    GROUP BY
-        t1.geom
-) AS t1 JOIN
-    entire_crosspoint AS t2
-ON
-    ST_DWithin(t1.geom::geography, t2.geom::geography, 100.0)
-WHERE
-    30.0 <= ST_Distance(t1.accident_geom::geography, t2.geom::geography);
+    WHERE
+        30.0 <= ST_Distance(t1.accident_geom::geography, t2.geom::geography)
+) GROUP BY
+    geom;
 
 DROP INDEX IF EXISTS idx_crosspoint;
 CREATE INDEX IF NOT EXISTS idx_crosspoint ON crosspoint USING GIST(geom);
@@ -113,13 +110,11 @@ CREATE TABLE crossline AS (
                 30.0,
                 ST_Azimuth(ST_StartPoint(line_geom), ST_EndPoint(line_geom))
             )::geometry
-        ) AS geom,
-        category
+        ) AS geom
     FROM (
         SELECT
             t1.geom AS geom,
-            ST_LongestLine(t1.geom, t2.geom) AS line_geom,
-            t1.category AS category
+            ST_LongestLine(t1.geom, t2.geom) AS line_geom
         FROM 
             crosspoint AS t1
         JOIN 

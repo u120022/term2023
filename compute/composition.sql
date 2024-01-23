@@ -82,15 +82,16 @@ FROM
     cl_angle;
 
 -- merge `clearance` and `width`
-DROP TABLE IF EXISTS flatten_frame;
-CREATE TEMPORARY TABLE IF NOT EXISTS flatten_frame AS (
+DROP TABLE IF EXISTS frame_flatten;
+CREATE TEMPORARY TABLE IF NOT EXISTS frame_flatten AS (
     SELECT
         t1.*,
         t2.dist AS dist_ob,
         t3.dist AS dist_noob,
         COALESCE(t4.widths_sw[t1.dir_seq], 9999.0) AS width_sw,
         COALESCE(t4.widths_nosw[t1.dir_seq], 9999.0) AS width_nosw,
-        t5.category
+        t5.accident,
+        t5.accident_count
     FROM
         scaffold AS t1
     LEFT JOIN
@@ -168,7 +169,8 @@ CREATE TABLE IF NOT EXISTS frame AS (
         t1.widths_nosw[3] AS width_nosw_3,
         t1.widths_nosw[4] AS width_nosw_4,
 
-        t1.category
+        t1.accident,
+        t1.accident_count
     FROM (
         SELECT
             geom,
@@ -178,19 +180,21 @@ CREATE TABLE IF NOT EXISTS frame AS (
             array_agg(dist_noob) AS dists_noob,
             array_agg(width_sw) AS widths_sw,
             array_agg(width_nosw) AS widths_nosw,
-            category
+            accident,
+            accident_count
         FROM (
             SELECT
                 *
             FROM
-                flatten_frame
+                frame_flatten
             ORDER BY
                 geom,
                 dir_seq
         ) GROUP BY
             geom,
             count,
-            category
+            accident,
+            accident_count
     ) AS t1 JOIN
         population
     AS t2 ON
