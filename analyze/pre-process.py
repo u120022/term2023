@@ -49,6 +49,7 @@ def extract_three_branch_crosspoint(df):
 def extract_four_branch_crosspoint(df):
     df = df[df["count"] == 4].drop("count", axis=1)
     # df = df[(df["width_sw_1"] < 13.0) & (df["width_sw_2"] < 13.0) & (df["width_sw_3"] < 13.0) & (df["width_sw_4"] < 13.0)]
+    df = df[(df["width_sw_1"] < 20.0) & (df["width_sw_2"] < 20.0) & (df["width_sw_3"] < 20.0) & (df["width_sw_4"] < 20.0)]
 
     df["argmin"] = np.argmin(df[["width_sw_1", "width_sw_2", "width_sw_3", "width_sw_4"]], axis=1)
 
