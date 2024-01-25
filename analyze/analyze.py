@@ -1,37 +1,26 @@
 import pandas as pd
+import sklearn.cluster
+import sklearn.decomposition
 import matplotlib.pyplot as plt
-import sklearn.model_selection
-import sklearn.metrics
-import xgboost
 
-df = pd.read_csv("frame.csv")
-print(df)
 
-# only 4 branch
+df = pd.read_csv("frame.csv", index_col=0)
 df = df[df["count"] == 4].drop("count", axis=1)
 
-X = df.drop("is_accident", axis=1)
-y = df["is_accident"]
+wcss = []
+for i in range(0, 10):
+    model = sklearn.cluster.KMeans(n_clusters=i + 1, random_state=0)
+    model.fit(df)
+    wcss.append(model.inertia_)
 
-cv = sklearn.model_selection.KFold(n_splits=5, shuffle=True)
+plt.figure()
+plt.plot(range(0, 10), wcss)
+plt.savefig("wcss.png")
 
-cv_params = {
-    "subsample": [0, 0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9, 1.0],
-    "colsample_bytree": [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-    "reg_alpha": [0, 0.0001, 0.001, 0.01, 0.03, 0.1, 0.3, 1.0],
-    "reg_lambda": [0, 0.0001, 0.001, 0.01, 0.03, 0.1, 0.3, 1.0],
-    "learning_rate": [0, 0.0001, 0.001, 0.01, 0.03, 0.1, 0.3, 1.0],
-    "min_child_weight": [1, 3, 5, 7, 9, 11, 13, 15],
-    "max_depth": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-    "gamma": [0, 0.0001, 0.001, 0.01, 0.03, 0.1, 0.3, 1.0]
-}
 
-model = xgboost.XGBClassifier()
+pca = sklearn.decomposition.PCA(n_components=3)
+pca.fit(df)
 
-for i, (k, v) in enumerate(cv_params.items()):
-    train_scores, valid_scores = sklearn.model_selection.validation_curve(estimator=model, X=X, y=y, param_name=k, param_range=v, cv=cv)
-
-    plt.figure()
-    plt.plot(v, train_scores, color="blue")
-    plt.plot(v, valid_scores, color="green")
-    plt.savefig(k)
+plt.figure()
+plt.bar(range(0, len(pca.explained_variance_ratio_)), pca.explained_variance_ratio_)
+plt.savefig("explain.png")
