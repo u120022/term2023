@@ -14,6 +14,8 @@ y = df["is_accident"]
 
 X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(X, y, shuffle=True, test_size=0.2, random_state=42)
 
+X_train, X_valid, y_train, y_valid = sklearn.model_selection.train_test_split(X_train, y_train, shuffle=True, test_size=0.125, random_state=42)
+
 sampler = imblearn.over_sampling.SMOTE(random_state=42)
 X_train, y_train = sampler.fit_resample(X_train, y_train)
 
@@ -29,10 +31,10 @@ params = {
     'bagging_freq': 6,
     'min_child_samples': 20,
 }
-model = lightgbm.LGBMClassifier(**params)
+model = lightgbm.LGBMClassifier()
 model.fit(X_train, y_train)
 
-y_pred = model.predict(X_test, num_iterations=1000)
+y_pred = model.predict(X_test)
 
 tn, fp, fn, tp = sklearn.metrics.confusion_matrix(y_test, y_pred).ravel()
 print(tn, fp, tn + fp, sep="\t")
